@@ -282,7 +282,7 @@ with st.container(border=True):
     with f3_c3:
         in_pass = st.slider("Precisión de pase (%)", 50.0, 98.0, 84.5)
     with f3_c4:
-        in_speed = st.slider("Velocidad de esprint (km/h)", 20.0, 37.0, 32.5)
+        in_speed = st.slider("Velocidad (km/h)", 20.0, 37.0, 32.5)
     with f3_c5:
         in_def = st.slider("Duelos defensivos (%)", 20.0, 95.0, 55.0)
 
