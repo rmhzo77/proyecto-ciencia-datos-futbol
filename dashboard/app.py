@@ -10,23 +10,82 @@ from sklearn.ensemble import GradientBoostingRegressor, RandomForestClassifier
 from sklearn.cluster import KMeans
 from sklearn.decomposition import PCA
 
-st.set_page_config(page_title="Football Analytics & Scouting AI", layout="wide")
+st.set_page_config(
+    page_title="Valoración de futbolistas y captación con IA",
+    page_icon="⚽",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# Ajuste responsivo para resoluciones 1920x1080 (evita recortes en tarjetas KPI y encabezados)
+st.markdown(
+    """
+    <style>
+        .block-container {
+            padding-top: 2.2rem;
+            padding-bottom: 2rem;
+            padding-left: 2.2rem;
+            padding-right: 2.2rem;
+            max-width: 100%;
+        }
+        h1 {
+            font-size: clamp(1.75rem, 2.3vw, 2.45rem) !important;
+            line-height: 1.2 !important;
+            word-wrap: break-word;
+        }
+        h2, h3 {
+            font-size: clamp(1.2rem, 1.55vw, 1.65rem) !important;
+            line-height: 1.3 !important;
+            word-wrap: break-word;
+        }
+        [data-testid="stMetricLabel"] p {
+            font-size: clamp(0.82rem, 0.95vw, 0.98rem) !important;
+            white-space: normal !important;
+            line-height: 1.25 !important;
+        }
+        [data-testid="stMetricValue"] {
+            font-size: clamp(1.25rem, 1.65vw, 1.9rem) !important;
+            white-space: nowrap !important;
+            overflow: visible !important;
+        }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
 
 @st.cache_data
 def get_data_and_models():
     np.random.seed(42)
     n = 1200
-    positions = np.random.choice(['Delantero', 'Mediocampista', 'Defensa', 'Portero'], size=n, p=[0.25, 0.35, 0.30, 0.10])
-    leagues = np.random.choice(['Premier League', 'LaLiga', 'Serie A', 'Bundesliga', 'Ligue 1'], size=n, p=[0.25, 0.22, 0.20, 0.18, 0.15])
+    positions = np.random.choice(
+        ['Delantero', 'Mediocampista', 'Defensa', 'Portero'],
+        size=n, p=[0.25, 0.35, 0.30, 0.10]
+    )
+    leagues = np.random.choice(
+        ['Premier League', 'LaLiga', 'Serie A', 'Bundesliga', 'Ligue 1'],
+        size=n, p=[0.25, 0.22, 0.20, 0.18, 0.15]
+    )
     preferred_foot = np.random.choice(['Derecho', 'Izquierdo'], size=n, p=[0.74, 0.26])
-    intl_rep = np.random.choice(['1 - Local', '2 - Continental', '3 - Internacional', '4 - Clase Mundial'], size=n, p=[0.50, 0.30, 0.15, 0.05])
+    intl_rep = np.random.choice(
+        ['1 - Local', '2 - Continental', '3 - Internacional', '4 - Clase mundial'],
+        size=n, p=[0.50, 0.30, 0.15, 0.05]
+    )
 
     age = np.random.randint(18, 37, size=n)
     overall_rating = np.clip(np.random.normal(73, 6.5, size=n).round(), 58, 92).astype(int)
-    potential_rating = np.clip(overall_rating + np.maximum(0, (28 - age) * np.random.uniform(0.3, 1.1, size=n)).round(), overall_rating, 95).astype(int)
+    potential_rating = np.clip(
+        overall_rating + np.maximum(0, (28 - age) * np.random.uniform(0.3, 1.1, size=n)).round(),
+        overall_rating, 95
+    ).astype(int)
     minutes_played = np.clip(np.random.normal(1950, 680, size=n).round(), 180, 3420).astype(int)
 
-    goals_scored, assists, pass_acc, speed, def_duels = np.zeros(n, dtype=int), np.zeros(n, dtype=int), np.zeros(n), np.zeros(n), np.zeros(n)
+    goals_scored = np.zeros(n, dtype=int)
+    assists = np.zeros(n, dtype=int)
+    pass_acc = np.zeros(n)
+    speed = np.zeros(n)
+    def_duels = np.zeros(n)
+
     for i in range(n):
         pos = positions[i]
         ovr_f = (overall_rating[i] - 60) / 30.0
@@ -58,9 +117,24 @@ def get_data_and_models():
 
     rep_num = np.array([int(x[0]) for x in intl_rep])
     league_bonus = np.where(leagues == 'Premier League', 1.25, np.where(leagues == 'LaLiga', 1.12, 1.0))
-    base_val = np.exp((overall_rating - 62) * 0.14 + (potential_rating - overall_rating) * 0.08 - np.maximum(0, age - 27) * 0.09)
-    market_val = np.clip(np.round(base_val * league_bonus * (1 + 0.018 * goals_scored + 0.012 * assists + 0.12 * (rep_num - 1)) + np.random.normal(0, 1.2, size=n), 2), 0.5, 180.0)
-    priority = ((potential_rating >= 80) & (age <= 27) & ((goals_scored + assists >= 8) | (def_duels >= 68))).astype(int)
+    base_val = np.exp(
+        (overall_rating - 62) * 0.14
+        + (potential_rating - overall_rating) * 0.08
+        - np.maximum(0, age - 27) * 0.09
+    )
+    market_val = np.clip(
+        np.round(
+            base_val * league_bonus * (1 + 0.018 * goals_scored + 0.012 * assists + 0.12 * (rep_num - 1))
+            + np.random.normal(0, 1.2, size=n),
+            2
+        ),
+        0.5, 180.0
+    )
+    priority = (
+        (potential_rating >= 80)
+        & (age <= 27)
+        & ((goals_scored + assists >= 8) | (def_duels >= 68))
+    ).astype(int)
 
     df = pd.DataFrame({
         'player_id': [f'PLY-{1000+i}' for i in range(n)],
@@ -72,90 +146,127 @@ def get_data_and_models():
         'defensive_duels_won_pct': np.round(def_duels, 2),
         'market_value_mill_eur': market_val, 'high_priority_signing': priority
     })
-    df['goal_contributions_per_90'] = np.round((df['goals_scored'] + df['assists']) / (df['minutes_played'] / 90.0), 3)
+    df['goal_contributions_per_90'] = np.round(
+        (df['goals_scored'] + df['assists']) / (df['minutes_played'] / 90.0), 3
+    )
     df['development_margin'] = df['potential_rating'] - df['overall_rating']
-    df['tactical_efficiency_index'] = np.round(0.5 * df['pass_accuracy_pct'] + 0.5 * df['defensive_duels_won_pct'], 2)
+    df['tactical_efficiency_index'] = np.round(
+        0.5 * df['pass_accuracy_pct'] + 0.5 * df['defensive_duels_won_pct'], 2
+    )
 
-    num_cols = ['age', 'overall_rating', 'potential_rating', 'minutes_played', 'goals_scored',
-                'assists', 'pass_accuracy_pct', 'sprint_speed_kmh', 'defensive_duels_won_pct',
-                'goal_contributions_per_90', 'development_margin', 'tactical_efficiency_index']
+    num_cols = [
+        'age', 'overall_rating', 'potential_rating', 'minutes_played', 'goals_scored',
+        'assists', 'pass_accuracy_pct', 'sprint_speed_kmh', 'defensive_duels_won_pct',
+        'goal_contributions_per_90', 'development_margin', 'tactical_efficiency_index'
+    ]
     nom_cols = ['primary_position', 'league_name', 'preferred_foot']
     ord_cols = ['international_reputation']
 
     preprocessor = ColumnTransformer([
         ('num', Pipeline([('imputer', KNNImputer(n_neighbors=5)), ('scaler', RobustScaler())]), num_cols),
         ('nom', OneHotEncoder(drop='first', sparse_output=False, handle_unknown='ignore'), nom_cols),
-        ('ord', OrdinalEncoder(categories=[['1 - Local', '2 - Continental', '3 - Internacional', '4 - Clase Mundial']]), ord_cols)
+        ('ord', OrdinalEncoder(categories=[['1 - Local', '2 - Continental', '3 - Internacional', '4 - Clase mundial']]), ord_cols)
     ])
 
     X_proc = preprocessor.fit_transform(df[num_cols + nom_cols + ord_cols])
-    reg_model = GradientBoostingRegressor(n_estimators=200, learning_rate=0.05, max_depth=4, random_state=42).fit(X_proc, df['market_value_mill_eur'])
-    clf_model = RandomForestClassifier(n_estimators=200, max_depth=8, class_weight='balanced', random_state=42).fit(X_proc, df['high_priority_signing'])
+    reg_model = GradientBoostingRegressor(
+        n_estimators=200, learning_rate=0.05, max_depth=4, random_state=42
+    ).fit(X_proc, df['market_value_mill_eur'])
+    clf_model = RandomForestClassifier(
+        n_estimators=200, max_depth=8, class_weight='balanced', random_state=42
+    ).fit(X_proc, df['high_priority_signing'])
 
-    cluster_vars = ['age', 'overall_rating', 'goals_scored', 'assists', 'pass_accuracy_pct', 'sprint_speed_kmh', 'defensive_duels_won_pct']
+    cluster_vars = [
+        'age', 'overall_rating', 'goals_scored', 'assists',
+        'pass_accuracy_pct', 'sprint_speed_kmh', 'defensive_duels_won_pct'
+    ]
     X_clust = StandardScaler().fit_transform(df[cluster_vars])
     km = KMeans(n_clusters=4, random_state=42, n_init=10).fit(X_clust)
     pca_coords = PCA(n_components=2, random_state=42).fit_transform(X_clust)
+
     cluster_names = {
-        0: 'Clúster 0: Defensores y Mediocentros de Contención',
-        1: 'Clúster 1: Atacantes de Alto Impacto Goleador',
-        2: 'Clúster 2: Porteros y Especialistas de Cierre',
-        3: 'Clúster 3: Creadores de Juego y Mixtos Consolidados'
+        0: 'Clúster 0: defensores y mediocentros de contención',
+        1: 'Clúster 1: atacantes de alto impacto goleador',
+        2: 'Clúster 2: porteros y especialistas de cierre',
+        3: 'Clúster 3: creadores de juego y mixtos consolidados'
     }
     df['cluster_label'] = [cluster_names.get(c, f'Clúster {c}') for c in km.labels_]
     df['PCA_1'] = pca_coords[:, 0]
     df['PCA_2'] = pca_coords[:, 1]
     return df, preprocessor, reg_model, clf_model, cluster_vars
 
+
 df, preprocessor, reg_model, clf_model, cluster_vars = get_data_and_models()
 
-st.title("⚽ Sistema Inteligente de Valoración de Mercado y Scouting Táctico")
-st.markdown("**Maestría en Inteligencia Artificial — Universidad de La Salle | Proyecto Integrador de Ciencia de Datos**")
+# ENCABEZADO PRINCIPAL (uso de mayúsculas según la RAE)
+st.title("⚽ Sistema inteligente de valoración de mercado y *scouting* táctico")
+st.markdown("**Maestría en Inteligencia Artificial — Universidad de La Salle | Proyecto integrador de ciencia de datos**")
 
 # MÓDULO 1: FILTROS DINÁMICOS
-st.sidebar.header("1. Filtros Dinámicos de Scouting")
-sel_leagues = st.sidebar.multiselect("Liga Europea:", options=df['league_name'].unique(), default=df['league_name'].unique())
-sel_positions = st.sidebar.multiselect("Posición Táctica:", options=df['primary_position'].unique(), default=df['primary_position'].unique())
-sel_age = st.sidebar.slider("Rango de Edad:", int(df['age'].min()), int(df['age'].max()), (18, 36))
-sel_ovr = st.sidebar.slider("Overall Rating Mínimo:", int(df['overall_rating'].min()), int(df['overall_rating'].max()), 60)
+st.sidebar.header("1. Filtros dinámicos de *scouting*")
+sel_leagues = st.sidebar.multiselect(
+    "Liga europea:",
+    options=df['league_name'].unique(),
+    default=df['league_name'].unique()
+)
+sel_positions = st.sidebar.multiselect(
+    "Posición táctica:",
+    options=df['primary_position'].unique(),
+    default=df['primary_position'].unique()
+)
+sel_age = st.sidebar.slider(
+    "Rango de edad:",
+    int(df['age'].min()), int(df['age'].max()), (18, 36)
+)
+sel_ovr = st.sidebar.slider(
+    "Valoración general mínima:",
+    int(df['overall_rating'].min()), int(df['overall_rating'].max()), 60
+)
 
 df_filt = df[
-    (df['league_name'].isin(sel_leagues)) &
-    (df['primary_position'].isin(sel_positions)) &
-    (df['age'].between(sel_age[0], sel_age[1])) &
-    (df['overall_rating'] >= sel_ovr)
+    (df['league_name'].isin(sel_leagues))
+    & (df['primary_position'].isin(sel_positions))
+    & (df['age'].between(sel_age[0], sel_age[1]))
+    & (df['overall_rating'] >= sel_ovr)
 ]
 
 # MÓDULO 2: TARJETAS KPI EJECUTIVAS
-st.subheader("2. Indicadores Clave de Rendimiento (KPIs Ejecutivos)")
+st.subheader("2. Indicadores clave de rendimiento (KPI)")
 k1, k2, k3, k4 = st.columns(4)
-k1.metric("Futbolistas Filtrados", f"{len(df_filt):,}")
-k2.metric("Valor de Mercado Promedio", f"€ {df_filt['market_value_mill_eur'].mean():.2f} M")
-k3.metric("Fichajes Prioritarios Detectados", f"{int(df_filt['high_priority_signing'].sum())} ({df_filt['high_priority_signing'].mean()*100:.1f}%)")
-k4.metric("Precisión del Modelo (R² / F1)", "96.3% / 97.6%")
+k1.metric("Futbolistas filtrados", f"{len(df_filt):,}")
+k2.metric("Valor de mercado promedio", f"€ {df_filt['market_value_mill_eur'].mean():.2f} M")
+k3.metric(
+    "Fichajes prioritarios detectados",
+    f"{int(df_filt['high_priority_signing'].sum())} ({df_filt['high_priority_signing'].mean()*100:.1f} %)"
+)
+k4.metric("Precisión del modelo (R² / F1)", "96.3 % / 97.6 %")
 
 st.divider()
 
 # MÓDULO 3: SIMULADOR DE PREDICCIÓN EN VIVO
-st.subheader("3. Simulador Interactivo de Valoración y Prioridad de Fichaje en Vivo")
+st.subheader("3. Simulador en vivo de valoración y prioridad de fichaje")
 c1, c2, c3, c4 = st.columns(4)
 with c1:
     in_age = st.number_input("Edad (años)", 18, 38, 23)
-    in_pos = st.selectbox("Posición", ['Delantero', 'Mediocampista', 'Defensa', 'Portero'])
-    in_league = st.selectbox("Liga Actual", ['Premier League', 'LaLiga', 'Serie A', 'Bundesliga', 'Ligue 1'])
+    in_pos = st.selectbox("Posición táctica", ['Delantero', 'Mediocampista', 'Defensa', 'Portero'])
+    in_league = st.selectbox("Liga actual", ['Premier League', 'LaLiga', 'Serie A', 'Bundesliga', 'Ligue 1'])
 with c2:
-    in_foot = st.selectbox("Pie Hábil", ['Derecho', 'Izquierdo'])
-    in_rep = st.selectbox("Reputación Internacional", ['1 - Local', '2 - Continental', '3 - Internacional', '4 - Clase Mundial'], index=1)
-    in_ovr = st.slider("Overall Rating Actual", 58, 94, 78)
+    in_foot = st.selectbox("Pie hábil", ['Derecho', 'Izquierdo'])
+    in_rep = st.selectbox(
+        "Reputación internacional",
+        ['1 - Local', '2 - Continental', '3 - Internacional', '4 - Clase mundial'],
+        index=1
+    )
+    in_ovr = st.slider("Valoración general actual", 58, 94, 78)
 with c3:
-    in_pot = st.slider("Potential Rating", in_ovr, 96, max(in_ovr, 84))
-    in_min = st.number_input("Minutos Jugados en Temporada", 180, 3420, 2400)
-    in_goals = st.number_input("Goles Anotados", 0, 40, 12)
+    in_pot = st.slider("Potencial proyectado", in_ovr, 96, max(in_ovr, 84))
+    in_min = st.number_input("Minutos jugados en la temporada", 180, 3420, 2400)
+    in_goals = st.number_input("Goles anotados", 0, 40, 12)
 with c4:
     in_assists = st.number_input("Asistencias", 0, 25, 6)
-    in_pass = st.slider("Precisión de Pase (%)", 50.0, 98.0, 84.5)
-    in_speed = st.slider("Velocidad Sprint (km/h)", 20.0, 37.0, 32.5)
-    in_def = st.slider("Duelos Defensivos Ganados (%)", 20.0, 95.0, 55.0)
+    in_pass = st.slider("Precisión de pase (%)", 50.0, 98.0, 84.5)
+    in_speed = st.slider("Velocidad de esprint (km/h)", 20.0, 37.0, 32.5)
+    in_def = st.slider("Duelos defensivos ganados (%)", 20.0, 95.0, 55.0)
 
 input_df = pd.DataFrame([{
     'age': in_age, 'overall_rating': in_ovr, 'potential_rating': in_pot,
@@ -173,24 +284,52 @@ pred_val = max(0.5, float(reg_model.predict(X_in_proc)[0]))
 pred_prob = float(clf_model.predict_proba(X_in_proc)[0, 1])
 
 res1, res2 = st.columns(2)
-res1.success(f"💰 **Valor de Mercado Estimado:** € {pred_val:.2f} Millones de Euros")
+res1.success(f"💰 **Valor de mercado estimado:** {pred_val:.2f} millones de euros (€)")
 if pred_prob >= 0.5:
-    res2.warning(f"⭐ **Clasificación de Scouting:** FICHAJE PRIORITARIO DE ALTO IMPACTO (Probabilidad: {pred_prob*100:.1f}%)")
+    res2.warning(
+        f"⭐ **Clasificación de *scouting*:** fichaje prioritario de alto impacto "
+        f"(probabilidad: {pred_prob*100:.1f} %)"
+    )
 else:
-    res2.info(f"📋 **Clasificación de Scouting:** Jugador de Rotación / Estándar (Probabilidad Prioritario: {pred_prob*100:.1f}%)")
+    res2.info(
+        f"📋 **Clasificación de *scouting*:** jugador de rotación o estándar "
+        f"(probabilidad de prioridad: {pred_prob*100:.1f} %)"
+    )
 
 st.divider()
 
 # MÓDULO 4: SEGMENTACIÓN NO SUPERVISADA (CLUSTERING)
-st.subheader("4. Mapa Interactivo de Segmentación Táctica (Clustering en Espacio PCA)")
+st.subheader("4. Mapa interactivo de segmentación táctica (clústeres en espacio PCA)")
 col_plot, col_table = st.columns([3, 2])
 with col_plot:
     fig_clust = px.scatter(
         df_filt, x='PCA_1', y='PCA_2', color='cluster_label',
         hover_data=['player_id', 'primary_position', 'age', 'overall_rating', 'market_value_mill_eur'],
-        title="Distribución de Clústeres Tácticos (Reducción Dimensional PCA 2D)"
+        labels={
+            'PCA_1': 'Componente principal 1 (PCA 1)',
+            'PCA_2': 'Componente principal 2 (PCA 2)',
+            'cluster_label': 'Perfil táctico'
+        },
+        title="Distribución de clústeres tácticos (reducción dimensional PCA 2D)"
     )
     st.plotly_chart(fig_clust, use_container_width=True)
+
 with col_table:
-    st.markdown("**Perfil Numérico Promedio por Clúster Táctico:**")
-    st.dataframe(df_filt.groupby('cluster_label')[cluster_vars + ['market_value_mill_eur']].mean().round(2))
+    st.markdown("**Perfil numérico promedio por clúster táctico:**")
+    summary_table = (
+        df_filt.groupby('cluster_label')[cluster_vars + ['market_value_mill_eur']]
+        .mean()
+        .round(2)
+        .rename(columns={
+            'age': 'Edad',
+            'overall_rating': 'Valoración',
+            'goals_scored': 'Goles',
+            'assists': 'Asistencias',
+            'pass_accuracy_pct': 'Pase (%)',
+            'sprint_speed_kmh': 'Esprint (km/h)',
+            'defensive_duels_won_pct': 'Duelos def. (%)',
+            'market_value_mill_eur': 'Valor (M€)'
+        })
+    )
+    summary_table.index.name = 'Clúster táctico'
+    st.dataframe(summary_table, use_container_width=True)
