@@ -361,52 +361,82 @@ else:
             )
             st.plotly_chart(fig_clust, use_container_width=True)
 
-    with col_radar:
+with col_radar:
         with st.container(border=True):
+            import plotly.graph_objects as go
+
+            def hex_a_rgba(hex_color, alpha=0.22):
+                hex_limpio = hex_color.lstrip('#')
+                r, g, b = tuple(int(hex_limpio[i:i+2], 16) for i in (0, 2, 4))
+                return f"rgba({r}, {g}, {b}, {alpha})"
+
             radar_vars = [
                 'overall_rating', 'goals_scored', 'assists',
                 'pass_accuracy_pct', 'sprint_speed_kmh', 'defensive_duels_won_pct'
             ]
-            radar_labels = {
-                'overall_rating': 'Valoración',
-                'goals_scored': 'Goles',
-                'assists': 'Asistencias',
-                'pass_accuracy_pct': 'Precisión de pase',
-                'sprint_speed_kmh': 'Velocidad',
-                'defensive_duels_won_pct': 'Duelos defensivos'
-            }
+            categorias = [
+                'Valoración', 'Goles', 'Asistencias',
+                'Precisión de pase', 'Velocidad', 'Duelos defensivos'
+            ]
 
             means_df = df_filt.groupby('cluster_label')[radar_vars].mean()
+
+            # Escalado entre los perfiles tácticos (rango 25 a 100) para expandir los polígonos
             norm_df = pd.DataFrame(index=means_df.index)
             for col in radar_vars:
-                norm_df[radar_labels[col]] = (
-                    (means_df[col] - df[col].min()) / (df[col].max() - df[col].min() + 1e-9) * 100
-                ).round(1)
+                rango = means_df[col].max() - means_df[col].min()
+                if rango > 0:
+                    norm_df[col] = ((means_df[col] - means_df[col].min()) / rango * 75 + 25).round(1)
+                else:
+                    norm_df[col] = 60.0
 
-            radar_long = norm_df.reset_index().melt(
-                id_vars='cluster_label',
-                var_name='Dimensión',
-                value_name='Índice relativo (0-100)'
-            )
+            fig_radar = go.Figure()
 
-            fig_radar = px.line_polar(
-                radar_long,
-                r='Índice relativo (0-100)',
-                theta='Dimensión',
-                color='cluster_label',
-                color_discrete_map=paleta_clusters,
-                line_close=True,
-                title="Comparativa multidimensional por perfil táctico"
-            )
-            fig_radar.update_traces(fill='toself', opacity=0.22)
+            for perfil, color_hex in paleta_clusters.items():
+                if perfil in norm_df.index:
+                    valores_esc = norm_df.loc[perfil, radar_vars].tolist()
+                    valores_reales = means_df.loc[perfil, radar_vars].round(2).tolist()
+
+                    # Cerrar el polígono repitiendo el primer punto al final
+                    valores_esc_cerrados = valores_esc + [valores_esc[0]]
+                    valores_reales_cerrados = valores_reales + [valores_reales[0]]
+                    categorias_cerradas = categorias + [categorias[0]]
+
+                    fig_radar.add_trace(go.Scatterpolar(
+                        r=valores_esc_cerrados,
+                        theta=categorias_cerradas,
+                        customdata=valores_reales_cerrados,
+                        mode='lines+markers',
+                        name=perfil,
+                        line=dict(color=color_hex, width=3),
+                        marker=dict(size=7, color=color_hex),
+                        fill='toself',
+                        fillcolor=hex_a_rgba(color_hex, alpha=0.22),
+                        opacity=1.0,
+                        hovertemplate="<b>%{theta}</b><br>Promedio real: %{customdata}<extra></extra>"
+                    ))
+
             fig_radar.update_layout(
+                title="Comparativa multidimensional por perfil táctico",
                 height=430,
-                margin=dict(l=40, r=40, t=50, b=90),
-                polar=dict(radialaxis=dict(visible=True, range=[0, 100], showticklabels=False)),
+                margin=dict(l=45, r=45, t=55, b=95),
+                polar=dict(
+                    bgcolor="rgba(248, 250, 252, 0.6)",
+                    radialaxis=dict(
+                        visible=True,
+                        range=[0, 105],
+                        showticklabels=False,
+                        gridcolor="#CBD5E1"
+                    ),
+                    angularaxis=dict(
+                        gridcolor="#CBD5E1",
+                        linecolor="#94A3B8"
+                    )
+                ),
                 legend=dict(
                     orientation="h",
                     yanchor="top",
-                    y=-0.20,
+                    y=-0.18,
                     xanchor="center",
                     x=0.5,
                     title_text=""
