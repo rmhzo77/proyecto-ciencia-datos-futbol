@@ -315,37 +315,139 @@ with st.container(border=True):
         )
 
 # MÓDULO 4: SEGMENTACIÓN NO SUPERVISADA (CLUSTERING)
-st.subheader("4. Mapa interactivo de segmentación táctica (clústeres en espacio PCA)")
-col_plot, col_table = st.columns([3, 2])
-with col_plot:
-    fig_clust = px.scatter(
-        df_filt, x='PCA_1', y='PCA_2', color='cluster_label',
-        hover_data=['player_id', 'primary_position', 'age', 'overall_rating', 'market_value_mill_eur'],
-        labels={
-            'PCA_1': 'Componente principal 1 (PCA 1)',
-            'PCA_2': 'Componente principal 2 (PCA 2)',
-            'cluster_label': 'Perfil táctico'
-        },
-        title="Distribución de clústeres tácticos (reducción dimensional PCA 2D)"
-    )
-    st.plotly_chart(fig_clust, use_container_width=True)
+st.subheader("4. Segmentación táctica no supervisada (clústeres en espacio PCA)")
 
-with col_table:
-    st.markdown("**Perfil numérico promedio por clúster táctico:**")
-    summary_table = (
-        df_filt.groupby('cluster_label')[cluster_vars + ['market_value_mill_eur']]
-        .mean()
-        .round(2)
-        .rename(columns={
-            'age': 'Edad',
+if df_filt.empty:
+    st.warning("No hay futbolistas que coincidan con los filtros seleccionados. Ajusta los criterios en el panel izquierdo.")
+else:
+    paleta_clusters = {
+        'Clúster 0: defensores y mediocentros de contención': '#1B4965',
+        'Clúster 1: atacantes de alto impacto goleador': '#E63946',
+        'Clúster 2: porteros y especialistas de cierre': '#2A9D8F',
+        'Clúster 3: creadores de juego y mixtos consolidados': '#F4A261'
+    }
+
+    # Fila superior: Mapa PCA 2D y Gráfico de radar lado a lado
+    col_pca, col_radar = st.columns(2)
+
+    with col_pca:
+        with st.container(border=True):
+            fig_clust = px.scatter(
+                df_filt,
+                x='PCA_1',
+                y='PCA_2',
+                color='cluster_label',
+                color_discrete_map=paleta_clusters,
+                hover_data=['player_id', 'primary_position', 'age', 'overall_rating', 'market_value_mill_eur'],
+                labels={
+                    'PCA_1': 'Componente principal 1 (PCA 1)',
+                    'PCA_2': 'Componente principal 2 (PCA 2)',
+                    'cluster_label': 'Perfil táctico'
+                },
+                title="Distribución espacial de clústeres (PCA 2D)"
+            )
+            fig_clust.update_traces(marker=dict(size=7, opacity=0.82))
+            fig_clust.update_layout(
+                height=430,
+                margin=dict(l=20, r=20, t=50, b=90),
+                legend=dict(
+                    orientation="h",
+                    yanchor="top",
+                    y=-0.20,
+                    xanchor="center",
+                    x=0.5,
+                    title_text=""
+                )
+            )
+            st.plotly_chart(fig_clust, use_container_width=True)
+
+    with col_radar:
+        with st.container(border=True):
+            radar_vars = [
+                'overall_rating', 'goals_scored', 'assists',
+                'pass_accuracy_pct', 'sprint_speed_kmh', 'defensive_duels_won_pct'
+            ]
+            radar_labels = {
+                'overall_rating': 'Valoración',
+                'goals_scored': 'Goles',
+                'assists': 'Asistencias',
+                'pass_accuracy_pct': 'Precisión de pase',
+                'sprint_speed_kmh': 'Velocidad',
+                'defensive_duels_won_pct': 'Duelos defensivos'
+            }
+
+            means_df = df_filt.groupby('cluster_label')[radar_vars].mean()
+            norm_df = pd.DataFrame(index=means_df.index)
+            for col in radar_vars:
+                norm_df[radar_labels[col]] = (
+                    (means_df[col] - df[col].min()) / (df[col].max() - df[col].min() + 1e-9) * 100
+                ).round(1)
+
+            radar_long = norm_df.reset_index().melt(
+                id_vars='cluster_label',
+                var_name='Dimensión',
+                value_name='Índice relativo (0-100)'
+            )
+
+            fig_radar = px.line_polar(
+                radar_long,
+                r='Índice relativo (0-100)',
+                theta='Dimensión',
+                color='cluster_label',
+                color_discrete_map=paleta_clusters,
+                line_close=True,
+                title="Comparativa multidimensional por perfil táctico"
+            )
+            fig_radar.update_traces(fill='toself', opacity=0.22)
+            fig_radar.update_layout(
+                height=430,
+                margin=dict(l=40, r=40, t=50, b=90),
+                polar=dict(radialaxis=dict(visible=True, range=[0, 100], showticklabels=False)),
+                legend=dict(
+                    orientation="h",
+                    yanchor="top",
+                    y=-0.20,
+                    xanchor="center",
+                    x=0.5,
+                    title_text=""
+                )
+            )
+            st.plotly_chart(fig_radar, use_container_width=True)
+
+    # Fila inferior: Tabla resumen ejecutiva a ancho completo
+    with st.container(border=True):
+        st.markdown("**Perfil numérico promedio por clúster táctico**")
+
+        conteo_clusters = df_filt.groupby('cluster_label').size().rename('Jugadores')
+        promedios_clusters = df_filt.groupby('cluster_label')[cluster_vars + ['market_value_mill_eur']].mean().round(2)
+
+        summary_table = pd.concat([conteo_clusters, promedios_clusters], axis=1).reset_index()
+        summary_table = summary_table.rename(columns={
+            'cluster_label': 'Perfil táctico',
+            'age': 'Edad (años)',
             'overall_rating': 'Valoración',
             'goals_scored': 'Goles',
             'assists': 'Asistencias',
             'pass_accuracy_pct': 'Pase (%)',
             'sprint_speed_kmh': 'Esprint (km/h)',
             'defensive_duels_won_pct': 'Duelos def. (%)',
-            'market_value_mill_eur': 'Valor (M€)'
+            'market_value_mill_eur': 'Valor promedio'
         })
-    )
-    summary_table.index.name = 'Clúster táctico'
-    st.dataframe(summary_table, use_container_width=True)
+
+        st.dataframe(
+            summary_table,
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "Perfil táctico": st.column_config.TextColumn("Perfil táctico", width="large"),
+                "Jugadores": st.column_config.NumberColumn("Jugadores", format="%d"),
+                "Edad (años)": st.column_config.NumberColumn("Edad (años)", format="%.1f"),
+                "Valoración": st.column_config.NumberColumn("Valoración", format="%.1f"),
+                "Goles": st.column_config.NumberColumn("Goles", format="%.2f"),
+                "Asistencias": st.column_config.NumberColumn("Asistencias", format="%.2f"),
+                "Pase (%)": st.column_config.NumberColumn("Pase (%)", format="%.1f %%"),
+                "Esprint (km/h)": st.column_config.NumberColumn("Esprint (km/h)", format="%.1f"),
+                "Duelos def. (%)": st.column_config.NumberColumn("Duelos def. (%)", format="%.1f %%"),
+                "Valor promedio": st.column_config.NumberColumn("Valor promedio", format="€ %.2f M")
+            }
+        )
