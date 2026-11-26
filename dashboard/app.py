@@ -2,6 +2,7 @@ import streamlit as st
 import numpy as np
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 from sklearn.impute import KNNImputer
 from sklearn.preprocessing import StandardScaler, RobustScaler, OneHotEncoder, OrdinalEncoder
 from sklearn.compose import ColumnTransformer
@@ -52,6 +53,12 @@ st.markdown(
     """,
     unsafe_allow_html=True
 )
+
+
+def hex_a_rgba(hex_color, alpha=0.22):
+    hex_limpio = hex_color.lstrip('#')
+    r, g, b = tuple(int(hex_limpio[i:i+2], 16) for i in (0, 2, 4))
+    return f"rgba({r}, {g}, {b}, {alpha})"
 
 
 @st.cache_data
@@ -198,7 +205,7 @@ def get_data_and_models():
 
 df, preprocessor, reg_model, clf_model, cluster_vars = get_data_and_models()
 
-# ENCABEZADO PRINCIPAL (uso de mayúsculas según la RAE)
+# ENCABEZADO PRINCIPAL (normativa ortográfica RAE)
 st.title("⚽ Sistema inteligente de valoración de mercado y *scouting* táctico")
 st.markdown("**Maestría en Inteligencia Artificial — Universidad de La Salle | Proyecto integrador de ciencia de datos**")
 
@@ -273,7 +280,7 @@ with st.container(border=True):
     with f2_c4:
         in_assists = st.number_input("Asistencias", 0, 25, 6)
 
-    # Fila 3: 5 deslizadores de calificación y rendimiento (misma altura visual)
+    # Fila 3: 5 deslizadores alineados horizontalmente
     f3_c1, f3_c2, f3_c3, f3_c4, f3_c5 = st.columns(5)
     with f3_c1:
         in_ovr = st.slider("Valoración actual", 58, 94, 78)
@@ -313,6 +320,8 @@ with st.container(border=True):
             f"📋 **Clasificación de *scouting*:** jugador de rotación o estándar "
             f"(probabilidad de prioridad: {pred_prob*100:.1f} %)"
         )
+
+st.divider()
 
 # MÓDULO 4: SEGMENTACIÓN NO SUPERVISADA (CLUSTERING)
 st.subheader("4. Segmentación táctica no supervisada (clústeres en espacio PCA)")
@@ -361,15 +370,8 @@ else:
             )
             st.plotly_chart(fig_clust, use_container_width=True)
 
-with col_radar:
+    with col_radar:
         with st.container(border=True):
-            import plotly.graph_objects as go
-
-            def hex_a_rgba(hex_color, alpha=0.22):
-                hex_limpio = hex_color.lstrip('#')
-                r, g, b = tuple(int(hex_limpio[i:i+2], 16) for i in (0, 2, 4))
-                return f"rgba({r}, {g}, {b}, {alpha})"
-
             radar_vars = [
                 'overall_rating', 'goals_scored', 'assists',
                 'pass_accuracy_pct', 'sprint_speed_kmh', 'defensive_duels_won_pct'
@@ -397,7 +399,6 @@ with col_radar:
                     valores_esc = norm_df.loc[perfil, radar_vars].tolist()
                     valores_reales = means_df.loc[perfil, radar_vars].round(2).tolist()
 
-                    # Cerrar el polígono repitiendo el primer punto al final
                     valores_esc_cerrados = valores_esc + [valores_esc[0]]
                     valores_reales_cerrados = valores_reales + [valores_reales[0]]
                     categorias_cerradas = categorias + [categorias[0]]
