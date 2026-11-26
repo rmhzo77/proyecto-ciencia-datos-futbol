@@ -245,58 +245,74 @@ st.divider()
 
 # MÓDULO 3: SIMULADOR DE PREDICCIÓN EN VIVO
 st.subheader("3. Simulador en vivo de valoración y prioridad de fichaje")
-c1, c2, c3, c4 = st.columns(4)
-with c1:
-    in_age = st.number_input("Edad (años)", 18, 38, 23)
-    in_pos = st.selectbox("Posición táctica", ['Delantero', 'Mediocampista', 'Defensa', 'Portero'])
-    in_league = st.selectbox("Liga actual", ['Premier League', 'LaLiga', 'Serie A', 'Bundesliga', 'Ligue 1'])
-with c2:
-    in_foot = st.selectbox("Pie hábil", ['Derecho', 'Izquierdo'])
-    in_rep = st.selectbox(
-        "Reputación internacional",
-        ['1 - Local', '2 - Continental', '3 - Internacional', '4 - Clase mundial'],
-        index=1
-    )
-    in_ovr = st.slider("Valoración general actual", 58, 94, 78)
-with c3:
-    in_pot = st.slider("Potencial proyectado", in_ovr, 96, max(in_ovr, 84))
-    in_min = st.number_input("Minutos jugados en la temporada", 180, 3420, 2400)
-    in_goals = st.number_input("Goles anotados", 0, 40, 12)
-with c4:
-    in_assists = st.number_input("Asistencias", 0, 25, 6)
-    in_pass = st.slider("Precisión de pase (%)", 50.0, 98.0, 84.5)
-    in_speed = st.slider("Velocidad de esprint (km/h)", 20.0, 37.0, 32.5)
-    in_def = st.slider("Duelos defensivos ganados (%)", 20.0, 95.0, 55.0)
 
-input_df = pd.DataFrame([{
-    'age': in_age, 'overall_rating': in_ovr, 'potential_rating': in_pot,
-    'minutes_played': in_min, 'goals_scored': in_goals, 'assists': in_assists,
-    'pass_accuracy_pct': in_pass, 'sprint_speed_kmh': in_speed, 'defensive_duels_won_pct': in_def,
-    'goal_contributions_per_90': round((in_goals + in_assists) / (in_min / 90.0), 3),
-    'development_margin': in_pot - in_ovr,
-    'tactical_efficiency_index': round(0.5 * in_pass + 0.5 * in_def, 2),
-    'primary_position': in_pos, 'league_name': in_league,
-    'preferred_foot': in_foot, 'international_reputation': in_rep
-}])
+with st.container(border=True):
+    # Fila 1: 4 listas desplegables (misma altura visual)
+    f1_c1, f1_c2, f1_c3, f1_c4 = st.columns(4)
+    with f1_c1:
+        in_pos = st.selectbox("Posición táctica", ['Delantero', 'Mediocampista', 'Defensa', 'Portero'])
+    with f1_c2:
+        in_league = st.selectbox("Liga actual", ['Premier League', 'LaLiga', 'Serie A', 'Bundesliga', 'Ligue 1'])
+    with f1_c3:
+        in_foot = st.selectbox("Pie hábil", ['Derecho', 'Izquierdo'])
+    with f1_c4:
+        in_rep = st.selectbox(
+            "Reputación internacional",
+            ['1 - Local', '2 - Continental', '3 - Internacional', '4 - Clase mundial'],
+            index=1
+        )
 
-X_in_proc = preprocessor.transform(input_df)
-pred_val = max(0.5, float(reg_model.predict(X_in_proc)[0]))
-pred_prob = float(clf_model.predict_proba(X_in_proc)[0, 1])
+    # Fila 2: 4 campos numéricos (misma altura visual)
+    f2_c1, f2_c2, f2_c3, f2_c4 = st.columns(4)
+    with f2_c1:
+        in_age = st.number_input("Edad (años)", 18, 38, 23)
+    with f2_c2:
+        in_min = st.number_input("Minutos jugados", 180, 3420, 2400)
+    with f2_c3:
+        in_goals = st.number_input("Goles anotados", 0, 40, 12)
+    with f2_c4:
+        in_assists = st.number_input("Asistencias", 0, 25, 6)
 
-res1, res2 = st.columns(2)
-res1.success(f"💰 **Valor de mercado estimado:** {pred_val:.2f} millones de euros (€)")
-if pred_prob >= 0.5:
-    res2.warning(
-        f"⭐ **Clasificación de *scouting*:** fichaje prioritario de alto impacto "
-        f"(probabilidad: {pred_prob*100:.1f} %)"
-    )
-else:
-    res2.info(
-        f"📋 **Clasificación de *scouting*:** jugador de rotación o estándar "
-        f"(probabilidad de prioridad: {pred_prob*100:.1f} %)"
-    )
+    # Fila 3: 5 deslizadores de calificación y rendimiento (misma altura visual)
+    f3_c1, f3_c2, f3_c3, f3_c4, f3_c5 = st.columns(5)
+    with f3_c1:
+        in_ovr = st.slider("Valoración actual", 58, 94, 78)
+    with f3_c2:
+        in_pot = st.slider("Potencial proyectado", in_ovr, 96, max(in_ovr, 84))
+    with f3_c3:
+        in_pass = st.slider("Precisión de pase (%)", 50.0, 98.0, 84.5)
+    with f3_c4:
+        in_speed = st.slider("Velocidad de esprint (km/h)", 20.0, 37.0, 32.5)
+    with f3_c5:
+        in_def = st.slider("Duelos defensivos (%)", 20.0, 95.0, 55.0)
 
-st.divider()
+    input_df = pd.DataFrame([{
+        'age': in_age, 'overall_rating': in_ovr, 'potential_rating': in_pot,
+        'minutes_played': in_min, 'goals_scored': in_goals, 'assists': in_assists,
+        'pass_accuracy_pct': in_pass, 'sprint_speed_kmh': in_speed, 'defensive_duels_won_pct': in_def,
+        'goal_contributions_per_90': round((in_goals + in_assists) / (in_min / 90.0), 3),
+        'development_margin': in_pot - in_ovr,
+        'tactical_efficiency_index': round(0.5 * in_pass + 0.5 * in_def, 2),
+        'primary_position': in_pos, 'league_name': in_league,
+        'preferred_foot': in_foot, 'international_reputation': in_rep
+    }])
+
+    X_in_proc = preprocessor.transform(input_df)
+    pred_val = max(0.5, float(reg_model.predict(X_in_proc)[0]))
+    pred_prob = float(clf_model.predict_proba(X_in_proc)[0, 1])
+
+    res1, res2 = st.columns(2)
+    res1.success(f"💰 **Valor de mercado estimado:** {pred_val:.2f} millones de euros (€)")
+    if pred_prob >= 0.5:
+        res2.warning(
+            f"⭐ **Clasificación de *scouting*:** fichaje prioritario de alto impacto "
+            f"(probabilidad: {pred_prob*100:.1f} %)"
+        )
+    else:
+        res2.info(
+            f"📋 **Clasificación de *scouting*:** jugador de rotación o estándar "
+            f"(probabilidad de prioridad: {pred_prob*100:.1f} %)"
+        )
 
 # MÓDULO 4: SEGMENTACIÓN NO SUPERVISADA (CLUSTERING)
 st.subheader("4. Mapa interactivo de segmentación táctica (clústeres en espacio PCA)")
