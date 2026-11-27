@@ -490,7 +490,7 @@ else:
                 "Goles": st.column_config.NumberColumn("Goles", format="%.2f"),
                 "Asistencias": st.column_config.NumberColumn("Asistencias", format="%.2f"),
                 "Pase (%)": st.column_config.NumberColumn("Pase (%)", format="%.1f %%"),
-                "Esprint (km/h)": st.column_config.NumberColumn("Esprint (km/h)", format="%.1f"),
+                "Sprint (km/h)": st.column_config.NumberColumn("Sprint (km/h)", format="%.1f"),
                 "Duelos def. (%)": st.column_config.NumberColumn("Duelos def. (%)", format="%.1f %%"),
                 "Valor promedio": st.column_config.NumberColumn("Valor promedio", format="€ %.2f M")
             }
