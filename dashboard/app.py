@@ -473,7 +473,7 @@ else:
             'goals_scored': 'Goles',
             'assists': 'Asistencias',
             'pass_accuracy_pct': 'Pase (%)',
-            'sprint_speed_kmh': 'Esprint (km/h)',
+            'sprint_speed_kmh': 'Sprint (km/h)',
             'defensive_duels_won_pct': 'Duelos def. (%)',
             'market_value_mill_eur': 'Valor promedio'
         })
