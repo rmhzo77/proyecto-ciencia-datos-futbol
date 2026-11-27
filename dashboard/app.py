@@ -191,13 +191,24 @@ def get_data_and_models():
     km = KMeans(n_clusters=4, random_state=42, n_init=10).fit(X_clust)
     pca_coords = PCA(n_components=2, random_state=42).fit_transform(X_clust)
 
+    # Asignación coherente de etiquetas según el perfil real de los centroides descubiertos
+    df['cluster_id'] = km.labels_
+    centroids = df.groupby('cluster_id')[cluster_vars].mean()
+
+    gk_id = centroids['sprint_speed_kmh'].idxmin()
+    rem1 = [c for c in centroids.index if c != gk_id]
+    att_id = centroids.loc[rem1, 'defensive_duels_won_pct'].idxmin()
+    rem2 = [c for c in rem1 if c != att_id]
+    elite_id = centroids.loc[rem2, 'overall_rating'].idxmax()
+    def_id = [c for c in rem2 if c != elite_id][0]
+
     cluster_names = {
-        0: 'Clúster 0: defensores y mediocentros de contención',
-        1: 'Clúster 1: atacantes de alto impacto goleador',
-        2: 'Clúster 2: porteros y especialistas de cierre',
-        3: 'Clúster 3: creadores de juego y mixtos consolidados'
+        def_id: 'Clúster 0: defensores y mediocentros de contención',
+        att_id: 'Clúster 1: atacantes veloces y finalizadores',
+        gk_id: 'Clúster 2: porteros y especialistas de cierre',
+        elite_id: 'Clúster 3: creadores ofensivos y figuras de élite'
     }
-    df['cluster_label'] = [cluster_names.get(c, f'Clúster {c}') for c in km.labels_]
+    df['cluster_label'] = df['cluster_id'].map(cluster_names)
     df['PCA_1'] = pca_coords[:, 0]
     df['PCA_2'] = pca_coords[:, 1]
     return df, preprocessor, reg_model, clf_model, cluster_vars
@@ -331,9 +342,9 @@ if df_filt.empty:
 else:
     paleta_clusters = {
         'Clúster 0: defensores y mediocentros de contención': '#1B4965',
-        'Clúster 1: atacantes de alto impacto goleador': '#E63946',
+        'Clúster 1: atacantes veloces y finalizadores': '#E63946',
         'Clúster 2: porteros y especialistas de cierre': '#2A9D8F',
-        'Clúster 3: creadores de juego y mixtos consolidados': '#F4A261'
+        'Clúster 3: creadores ofensivos y figuras de élite': '#F4A261'
     }
 
     # Fila superior: Mapa PCA 2D y Gráfico de radar lado a lado
@@ -347,6 +358,7 @@ else:
                 y='PCA_2',
                 color='cluster_label',
                 color_discrete_map=paleta_clusters,
+                category_orders={'cluster_label': list(paleta_clusters.keys())},
                 hover_data=['player_id', 'primary_position', 'age', 'overall_rating', 'market_value_mill_eur'],
                 labels={
                     'PCA_1': 'Componente principal 1 (PCA 1)',
@@ -357,8 +369,8 @@ else:
             )
             fig_clust.update_traces(marker=dict(size=7, opacity=0.82))
             fig_clust.update_layout(
-                height=430,
-                margin=dict(l=20, r=20, t=50, b=90),
+                height=440,
+                margin=dict(l=20, r=20, t=50, b=100),
                 legend=dict(
                     orientation="h",
                     yanchor="top",
@@ -383,7 +395,7 @@ else:
 
             means_df = df_filt.groupby('cluster_label')[radar_vars].mean()
 
-            # Escalado entre los perfiles tácticos (rango 25 a 100) para expandir los polígonos
+            # Escalado relativo entre los 4 perfiles (rango 25 a 100)
             norm_df = pd.DataFrame(index=means_df.index)
             for col in radar_vars:
                 rango = means_df[col].max() - means_df[col].min()
@@ -419,8 +431,8 @@ else:
 
             fig_radar.update_layout(
                 title="Comparativa multidimensional por perfil táctico",
-                height=430,
-                margin=dict(l=45, r=45, t=55, b=95),
+                height=440,
+                margin=dict(l=110, r=90, t=55, b=100),
                 polar=dict(
                     bgcolor="rgba(248, 250, 252, 0.6)",
                     radialaxis=dict(
@@ -431,13 +443,14 @@ else:
                     ),
                     angularaxis=dict(
                         gridcolor="#CBD5E1",
-                        linecolor="#94A3B8"
+                        linecolor="#94A3B8",
+                        automargin=True
                     )
                 ),
                 legend=dict(
                     orientation="h",
                     yanchor="top",
-                    y=-0.18,
+                    y=-0.20,
                     xanchor="center",
                     x=0.5,
                     title_text=""
@@ -452,7 +465,8 @@ else:
         conteo_clusters = df_filt.groupby('cluster_label').size().rename('Jugadores')
         promedios_clusters = df_filt.groupby('cluster_label')[cluster_vars + ['market_value_mill_eur']].mean().round(2)
 
-        summary_table = pd.concat([conteo_clusters, promedios_clusters], axis=1).reset_index()
+        summary_table = pd.concat([conteo_clusters, promedios_clusters], axis=1)
+        summary_table = summary_table.reindex([c for c in paleta_clusters.keys() if c in summary_table.index]).reset_index()
         summary_table = summary_table.rename(columns={
             'cluster_label': 'Perfil táctico',
             'age': 'Edad (años)',
